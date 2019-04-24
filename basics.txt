@@ -1,4 +1,5 @@
 This summarises the manual setup of duosec to protect user login and su/sudo privilege use.
+to be clear this is really just copy-pasta of https://duo.com/docs/duounix
 I'm on Centos7.
 Prereq: need to connect to Duo on TCP 443
 
