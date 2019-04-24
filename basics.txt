@@ -1,0 +1,90 @@
+This summarises the manual setup of duosec to protect user login and su/sudo privilege use.
+I'm on Centos7.
+Prereq: need to connect to Duo on TCP 443
+
+1: packages
+Create /etc/yum.repos.d/duosecurity.repo with the following contents:
+
+[duosecurity]
+name=Duo Security Repository
+baseurl=http://pkg.duosecurity.com/CentOS/$releasever/$basearch
+enabled=1
+gpgcheck=1
+
+Execute the following shell commands:
+
+# rpm --import https://duo.com/RPM-GPG-KEY-DUO
+# yum install duo_unix
+
+# vi /etc/duo/pam_duo.conf
+
+[duo]
+;obvs sections with {ikey} or whatever need to be overtyped with your keys obtained from the duo 
+; Duo integration key
+ikey = {ikey}
+; Duo secret key
+skey = {skey}
+; Duo API host
+host = {apihost}.duosecurity.com
+; `failmode = safe` In the event of errors with this configuration file or connection to the Duo service
+; this mode will allow login without 2FA.
+; `failmode = secure` This mode will deny access in the above cases. Misconfigurations with this setting
+; enabled may result in you being locked out of your system.
+failmode = safe
+; Send command for Duo Push authentication
+pushinfo = yes
+
+
+
+
+# vi /etc/pam.d/sshd
+
++============+
+Before:
++============+
+#%PAM-1.0
+auth  required pam_sepermit.so
+auth  substack password-auth
+auth  include postlogin
+
++============+
+After:
++============+
+#%PAM-1.0
+auth  required pam_sepermit.so
+#auth  substack password-auth
+auth  required pam_env.so #added
+auth  sufficient pam_duo.so #added
+auth  required pam_deny.so #added
+auth  include postlogin
+
+# vi /etc/pam.d/system-auth-ac
++============+
+Before:
++============+
+auth  required pam_env.so
+auth  sufficient pam_unix.so nullok try_first_pass
+auth  requisite pam_succeed_if.so uid >= 1000 quiet #docs indicate UID>=500 but not on my sys
+auth  required pam_deny.so
+
++============+
+After:
++============+
+auth  required pam_env.so
+# auth  sufficient pam_unix.so nullok try_first_pass
+auth  requisite pam_unix.so nullok try_first_pass
+auth  sufficient pam_duo.so
+auth  requisite pam_succeed_if.so uid >= 1000 quiet
+auth  required pam_deny.so
+
+# vi /etc/ssh/sshd_config
+ensure that the lines
+UsePAM yes
+ChallengeResponseAuthentication yes
+UseDNS no
+
+are set
+
+# systemctl restart sshd
+
+and you shoudl be good to go
